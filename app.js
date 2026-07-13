@@ -6,8 +6,8 @@
 
 /* ---------- 1. CONFIG — paste your values, commit, deploy ----------- */
 const CONFIG = {
-  SUPABASE_URL:      'https://YOUR-PROJECT-REF.supabase.co',
-  SUPABASE_ANON_KEY: 'YOUR-SUPABASE-ANON-KEY',
+  SUPABASE_URL:      'https://msojmpxesbyegbxloday.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zb2ptcHhlc2J5ZWdieGxvZGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMzQ5NTgsImV4cCI6MjA5NTcxMDk1OH0.SBfypZfTcR5NO8q76ImnGug7WpWJnOgAt1kWZYPqAbo',
   SEND_FN:           '/.netlify/functions/send-email',
 };
 
