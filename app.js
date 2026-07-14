@@ -253,7 +253,7 @@ async function viewDashboard(){
     <div class="stat accent"><div class="n">${money(totals.sent)}</div><div class="k">Emails sent</div></div>
     <div class="stat good"><div class="n">${money(totals.delivered)}</div><div class="k">Delivered</div></div>
     <div class="stat"><div class="n">${money(totals.opened)}</div><div class="k">Opened</div></div>
-    <div class="stat good"><div class="n">${money(totals.completed)}</div><div class="k">Completed</div></div>
+    <div class="stat good"><div class="n">${money(totals.completed)}</div><div class="k">Completed Cognito form (upload required)</div></div>
     <div class="stat"><div class="n">${money(totals.outstanding)}</div><div class="k">Outstanding</div></div>
     <div class="stat bad"><div class="n">${money(totals.bounced)}</div><div class="k">Bounced</div></div>
     <div class="stat"><div class="n">${rate}%</div><div class="k">Completion rate</div></div>
@@ -261,7 +261,7 @@ async function viewDashboard(){
   <div class="card">
     <h2 style="font-size:17px;margin-bottom:14px">Campaigns</h2>
     ${rows.length?`<table><thead><tr><th>Campaign</th><th>Program</th><th>Status</th>
-      <th>Candidates</th><th>Completed</th><th>Deadline</th><th></th></tr></thead><tbody>
+      <th>Candidates</th><th>Completed form</th><th>Deadline</th><th></th></tr></thead><tbody>
       ${rows.map(({c,st})=>`<tr>
         <td><b>${esc(c.name)}</b></td>
         <td>${esc(c.program_state||'—')}</td>
