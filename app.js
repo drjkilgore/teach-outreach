@@ -6,7 +6,7 @@
 
 /* ---------- 1. CONFIG — paste your values, commit, deploy ----------- */
 const CONFIG = {
-  SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
+   SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpham91ZWllZ2FkeGNubWZndWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODcxMTcsImV4cCI6MjA5OTU2MzExN30.0x0Sqxfk9bT3VbZxXnqmFy0p0AiiEEkR1YizF0Fur_A',
   SEND_FN:           '/.netlify/functions/send-email',
 };
@@ -867,13 +867,22 @@ window.sendTest=sendTest;
 
 async function sendCampaign(){
   if(!$('rv_confirm').checked) return;
-  const btn=$('rv_sendall'); btn.disabled=true; btn.textContent='Sending…';
+  const btn=$('rv_sendall'); btn.disabled=true;
   await sb.from('campaigns').update({status:'sending'}).eq('id',S.campaign.id);
+  let sent=0, failed=0, guard=0; const sampleErrors=[];
   try{
-    const out=await callSend({campaignId:S.campaign.id,mode:'all'});
-    // schedule first reminder for everyone just sent
+    while(true){
+      const out=await callSend({campaignId:S.campaign.id,mode:'all',limit:20});
+      sent+=out.sent||0; failed+=out.failed||0;
+      if(out.errors&&out.errors.length&&sampleErrors.length<5) sampleErrors.push(...out.errors.slice(0,5-sampleErrors.length));
+      btn.textContent=`Sending… ${sent} sent${out.remaining?`, ${out.remaining} left`:''}`;
+      if(!out.processed || out.remaining===0){ break; }
+      if(++guard>1000){ break; }
+    }
     await scheduleReminders();
-    toast(`Sent ${out.sent}, failed ${out.failed}, skipped ${out.skipped}`, out.failed?'':'ok');
+    await sb.from('campaigns').update({status:'sending'}).eq('id',S.campaign.id);
+    toast(`Campaign done: ${sent} sent${failed?`, ${failed} failed`:''}`, failed?'':'ok');
+    if(failed && sampleErrors.length) console.warn('Send failures (sample):',sampleErrors);
     await loadCampaigns(); await loadCandidates(S.campaign.id); go('candidates');
   }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Send'; }
 }
@@ -882,7 +891,7 @@ window.sendCampaign=sendCampaign;
 async function sendOne(id){
   toast('Sending…');
   try{ const out=await callSend({campaignId:S.campaign.id,mode:'one',candidateIds:[id]});
-    toast(out.sent?'Email sent':'Not sent: '+(out.errors[0]||''), out.sent?'ok':'err');
+    toast(out.sent?'Email sent':'Not sent: '+((out.errors&&out.errors[0])||'unknown'), out.sent?'ok':'err');
     closeModal('candmodal'); await loadCandidates(S.campaign.id); routeView();
   }catch(e){ toast(e.message,'err'); }
 }
