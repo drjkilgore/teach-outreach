@@ -6,7 +6,7 @@
 
 /* ---------- 1. CONFIG — paste your values, commit, deploy ----------- */
 const CONFIG = {
-  SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
+   SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpham91ZWllZ2FkeGNubWZndWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODcxMTcsImV4cCI6MjA5OTU2MzExN30.0x0Sqxfk9bT3VbZxXnqmFy0p0AiiEEkR1YizF0Fur_A',
   SEND_FN:           '/.netlify/functions/send-email',
 };
@@ -202,7 +202,7 @@ function renderApp(){
       <div class="lbl">Administration</div>
       ${['super_admin','program_admin'].includes(r)?nav('audit','Audit log'):''}
       ${IS_SUPER(r)?nav('users','Users'):''}
-      ${nav('help','Security &amp; help')}
+      ${nav('help','How to use')}
     </nav></aside>
     <main class="main" id="main"></main>
   </div>`;
@@ -1000,7 +1000,8 @@ async function viewCompletion(){
   <div class="banner info">You don't need any Cognito integration. Export your form's submissions from
     Cognito and import the file below — candidates are matched by Student ID (or by name + date of birth)
     and marked complete. The importer reads only the columns you map; Social Security numbers in the file
-    are ignored and never stored. You can also mark candidates complete by hand from their record.</div>
+    are ignored and never stored. You can also mark candidates complete by hand from their record.
+    <a href="#" onclick="go('help');return false"> &nbsp;See step-by-step instructions →</a></div>
   ${canEdit?`<div class="card">
     <h2 style="font-size:16px;margin-bottom:8px">Import submissions from Cognito Forms</h2>
     <ol class="muted" style="font-size:13px;margin:0 0 12px;padding-left:18px;line-height:1.8">
@@ -1238,31 +1239,76 @@ window.copyInvite=copyInvite;
 /* ---------- 18. HELP ----------------------------------------------- */
 function viewHelp(){
   $('main').innerHTML=`
-  <div class="page-head"><div><h1>Security &amp; help</h1></div></div>
+  <div class="page-head"><div><h1>How to use &amp; security</h1>
+    <div class="sub">A quick reference for running a campaign end to end.</div></div></div>
+
   <div class="card">
-    <h2 style="font-size:17px;margin-bottom:10px">How this app protects candidate data</h2>
-    <ul style="line-height:1.9;color:var(--ink)">
-      <li><b>No SSNs, ever.</b> There is no field to enter one. Uploads containing an SSN-shaped value are
-        blocked. Notes are checked at the database level. SSNs are collected only through the secure form.</li>
-      <li><b>Role-based access.</b> Super Admin, Program Admin, Reviewer, and Read-Only. Only admins can
-        send, edit, or export. Reviewers can add notes. Read-only users cannot change anything.</li>
-      <li><b>Masked PII.</b> Dates of birth and Student IDs show masked in lists; full values appear only
-        to admins on an individual record.</li>
-      <li><b>Server-side sending.</b> The SendGrid key lives only in the Netlify function, which verifies
-        your session and role before sending. It never reaches the browser.</li>
-      <li><b>Immutable audit log.</b> Uploads, edits, approvals, sends, exports, and status changes are
-        recorded and cannot be altered or deleted.</li>
-      <li><b>Encryption.</b> HTTPS in transit; Supabase encrypts data at rest.</li>
-    </ul>
-    <h2 style="font-size:16px;margin:18px 0 8px">The workflow</h2>
+    <h2 style="font-size:17px;margin-bottom:10px">The workflow, step by step</h2>
     <ol style="line-height:1.9">
-      <li>Create a campaign (defaults to the NC demographic-update template).</li>
-      <li>Upload a candidate spreadsheet and clear any validation issues.</li>
-      <li>Review counts, the sample email, and delivery details; send a test.</li>
-      <li>Check the confirmation box and send. Reminders schedule automatically.</li>
-      <li>Completions are recorded by importing your Cognito submissions export (matched by Student ID
-        or name + DOB), or by marking candidates complete by hand. No Cognito integration is required.</li>
+      <li><b>Create a campaign.</b> Campaigns → New campaign. It's pre-filled with the NC
+        demographic-update email, deadline, and secure form link. Set a sender email that's
+        authenticated in SendGrid, then Save.</li>
+      <li><b>Upload candidates.</b> Open the campaign → Upload candidates. Excel or CSV. The file is
+        validated first (missing fields, bad emails, duplicates, bad dates). Fix and re-upload if
+        needed, then Import. Anything SSN-shaped in an imported field blocks the whole file.</li>
+      <li><b>Review &amp; send.</b> Send a test to yourself first, read it, then check the confirmation
+        box and Send. It sends in batches with a live counter. Completed and excluded candidates are
+        always skipped.</li>
+      <li><b>Reminders run themselves.</b> Per your follow-up schedule, non-responders get reminders
+        automatically each hour. Bounced and completed candidates are never contacted.</li>
+      <li><b>Record completions</b> as candidates respond — see the next section.</li>
     </ol>
+  </div>
+
+  <div class="card" style="margin-top:16px;border-color:var(--sky)">
+    <h2 style="font-size:17px;margin-bottom:6px">Populating "Completed": upload the Cognito download</h2>
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">The Completed number only moves when you
+      import your form's submissions. Do this every few days as responses come in. The importer reads
+      <b>only</b> the columns you map — any Social Security number in the file is ignored and never stored.</p>
+    <ol style="line-height:1.95">
+      <li><b>Export from Cognito Forms.</b> In Cognito, open your form
+        (<i>Resident Demographic Update</i>) → the <b>Entries</b> tab → click <b>Export</b> and
+        download the Excel (or CSV) file.</li>
+      <li><b>Open this app</b> → pick the campaign → <b>Completion</b> in the left menu.</li>
+      <li>Under <b>"Import submissions from Cognito Forms,"</b> click <b>Choose file</b> and select the
+        file you just downloaded.</li>
+      <li><b>Map the columns.</b> Tell the app which column is the <b>Intern ID</b> (that's your Student
+        ID here). If your form didn't capture it, you can instead map <b>First name + Last name + Date of
+        birth</b> as a fallback match. Click <b>Preview matches</b>.</li>
+      <li><b>Review the preview</b> — it shows how many candidates matched (by ID or by name/DOB) and how
+        many rows didn't match. Then click <b>Mark complete</b>.</li>
+      <li>Matched candidates flip to <b>completed</b>, their reminders stop, and the dashboard's
+        <b>Completed</b> and <b>Outstanding</b> numbers update.</li>
+    </ol>
+    <div class="banner info" style="margin-top:6px">Tip: you can re-export and re-import as often as you
+      like — already-completed candidates simply stay completed. You can also mark a single person complete
+      by hand from their record (open a candidate → Mark complete), handy for phone confirmations.</div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:16px;margin-bottom:8px">Reading the dashboard</h2>
+    <ul style="line-height:1.85;color:var(--ink)">
+      <li><b>Emails sent</b> — accepted by SendGrid for delivery.</li>
+      <li><b>Delivered / Opened / Bounced</b> — come back automatically from SendGrid. Opens are a soft
+        signal (some mail apps pre-load images), so treat Delivered and Completed as your reliable numbers.</li>
+      <li><b>Completed Cognito form</b> — candidates you've marked complete via the import above.</li>
+      <li><b>Outstanding</b> — everyone not yet completed.</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:16px;margin-bottom:8px">Adding staff &amp; security</h2>
+    <ul style="line-height:1.85;color:var(--ink)">
+      <li><b>Invite users</b> (Super Admins) on the Users page — no Supabase needed. Program Admin can run
+        outreach; Reviewer can add notes; Read-Only can only view.</li>
+      <li><b>No SSNs, ever.</b> There's no field for one, uploads are scanned, and notes are checked at the
+        database. SSNs are collected only through the secure Cognito form.</li>
+      <li><b>Masked PII.</b> Dates of birth and Student IDs are masked in lists; full values show only to
+        admins on an individual record.</li>
+      <li><b>Immutable audit log.</b> Uploads, sends, edits, exports, and status changes are all recorded
+        and can't be altered.</li>
+      <li><b>Encryption.</b> HTTPS in transit; encrypted at rest.</li>
+    </ul>
   </div>`;
 }
 
