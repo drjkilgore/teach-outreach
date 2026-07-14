@@ -400,8 +400,9 @@ function viewUpload(){
   m.innerHTML=`
   <div class="page-head"><div><h1>Upload candidates</h1>
     <div class="sub">${esc(S.campaign.name)} — Excel or CSV. Validated before anything imports.</div></div></div>
-  <div class="banner info">Social Security numbers are never accepted here. If any cell or column
-    looks like an SSN, the entire file is blocked. Candidates submit SSNs only through the secure form.</div>
+  <div class="banner info">Social Security numbers are never stored here. If a value in an <b>imported</b>
+    field looks like an SSN, the whole file is blocked. Extra columns your CRM adds (e.g. an Intern ID)
+    are ignored, not stored, and don't trip the check. Candidates submit SSNs only through the secure form.</div>
   <div class="card">
     <div class="field"><label>Select file (.xlsx, .xls, or .csv)</label>
       <input id="up_file" type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"></div>
@@ -436,16 +437,21 @@ window.handleFile=handleFile;
 
 function validateAndReport(rawRows, filename){
   const rep=$('up_report');
-  // --- SSN guard: scan every cell + header before anything else ---
+  // --- SSN guard ---
+  // Value scan runs only on columns the app actually imports (name, email, DOB,
+  // Student ID, notes, etc.). Unrecognized CRM columns (e.g. a random 9-digit
+  // "Intern ID") are dropped on import and never stored, so they aren't scanned.
+  // A column literally named SSN / Social Security still hard-blocks regardless.
   const ssnHits=[];
   const headerHasSsn = rawRows.length && Object.keys(rawRows[0]).some(h=>/ssn|social\s*security/i.test(h));
   rawRows.forEach((r,i)=>Object.entries(r).forEach(([k,v])=>{
-    if(SSN_RE.test(String(v))) ssnHits.push(`Row ${i+2}, column "${k}"`);
+    const mapped = HEADER_MAP[String(k).trim().toLowerCase()];
+    if(mapped && SSN_RE.test(String(v))) ssnHits.push(`Row ${i+2}, column "${k}"`);
   }));
   if(headerHasSsn || ssnHits.length){
     rep.innerHTML=`<div class="banner err"><b>Import blocked — possible SSN detected.</b><br>
       ${headerHasSsn?'A column header references an SSN. ':''}
-      ${ssnHits.length?`SSN-shaped values found: ${esc(ssnHits.slice(0,6).join('; '))}${ssnHits.length>6?` and ${ssnHits.length-6} more`:''}. `:''}
+      ${ssnHits.length?`SSN-shaped values found in an imported field: ${esc(ssnHits.slice(0,6).join('; '))}${ssnHits.length>6?` and ${ssnHits.length-6} more`:''}. `:''}
       Remove all Social Security numbers from the spreadsheet and re-upload. SSNs must be collected
       only through the secure form.</div>`;
     return;
