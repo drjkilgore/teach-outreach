@@ -6,7 +6,7 @@
 
 /* ---------- 1. CONFIG — paste your values, commit, deploy ----------- */
 const CONFIG = {
-   SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
+  SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpham91ZWllZ2FkeGNubWZndWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODcxMTcsImV4cCI6MjA5OTU2MzExN30.0x0Sqxfk9bT3VbZxXnqmFy0p0AiiEEkR1YizF0Fur_A',
   SEND_FN:           '/.netlify/functions/send-email',
 };
@@ -183,6 +183,7 @@ function renderApp(){
   <div class="topbar">
     <div class="brand">#TEACH <span class="tag">Compliance Outreach</span></div>
     <div class="who">
+      <button class="btn-sky btn-sm" onclick="go('help')" title="Step-by-step guide">? How to use</button>
       <span>${esc(S.profile.full_name||S.profile.email)}</span>
       <span class="pill sky">${ROLE_LABEL[r]}</span>
       <button class="btn-ghost btn-sm" onclick="doLogout()">Sign out</button>
