@@ -16,7 +16,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SENDGRID_KEY = process.env.SENDGRID_API_KEY;
 
-const SSN_RE = /\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/;
+const SSN_RE = /\b\d{3}[-\s]\d{2}[-\s]\d{4}\b/;
 
 const json = (code, obj) => ({
   statusCode: code,
