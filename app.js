@@ -12,7 +12,7 @@ const CONFIG = {
 };
 
 /* ---------- 2. constants -------------------------------------------- */
-const SSN_RE = /\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/;
+const SSN_RE = /\b\d{3}[-\s]\d{2}[-\s]\d{4}\b/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MERGE_RE = /\{\{\s*(\w+)\s*\}\}/g;
 const MERGE_FIELDS = ['first_name','last_name','full_name','date_of_birth','student_id',
@@ -387,9 +387,11 @@ const HEADER_MAP = {
   'email address':'email','email':'email',
   'date of birth':'date_of_birth','dob':'date_of_birth','birthdate':'date_of_birth',
   'student id':'student_id','studentid':'student_id','id':'student_id',
+  'intern id':'student_id','internid':'student_id','intern number':'student_id',
   'personal email':'personal_email','#teach email':'teach_email','teach email':'teach_email',
   'phone number':'phone','phone':'phone','program':'program','state':'state',
-  'enrollment status':'enrollment_status','cohort':'cohort',
+  'state (program)':'state','admissioncertarea':'program','program path':'program',
+  'enrollment status':'enrollment_status','candidate status':'enrollment_status','cohort':'cohort',
   'assigned advisor':'advisor_name','advisor':'advisor_name','notes':'notes',
 };
 const REQUIRED = ['first_name','last_name','email','date_of_birth','student_id'];
@@ -467,7 +469,10 @@ function validateAndReport(rawRows, filename){
     const c={};
     Object.entries(r).forEach(([h,v])=>{
       const key=HEADER_MAP[String(h).trim().toLowerCase()];
-      if(key) c[key]=typeof v==='string'?v.trim():v;
+      if(!key) return;
+      const val=typeof v==='string'?v.trim():v;
+      if(val!==''&&val!=null) c[key]=val;          // a real value always wins
+      else if(c[key]===undefined) c[key]=val;      // a blank only fills an empty slot
     });
     // dates
     if(c.date_of_birth!=null && c.date_of_birth!==''){
