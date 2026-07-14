@@ -45,31 +45,31 @@ exports.handler = async () => {
     return { statusCode: 500, body: 'not configured' };
 
   const nowIso = new Date().toISOString();
+  // process a capped batch per run so the invocation stays under the time limit;
+  // subsequent hourly runs clear any remaining backlog.
   const due = await sb(
     `candidates?excluded=eq.false&status=not.in.(completed,responded)` +
-    `&next_followup_at=lte.${nowIso}&select=*&limit=200`);
+    `&next_followup_at=lte.${nowIso}&select=*&order=next_followup_at&limit=40`);
   if (!due || !due.length) return { statusCode: 200, body: 'nothing due' };
 
   const campCache = {};
-  let sent = 0, failed = 0;
+  const campFor = async (id) => {
+    if (!campCache[id]) campCache[id] = (await sb(`campaigns?id=eq.${id}&select=*`))[0] || null;
+    return campCache[id];
+  };
+  // pre-load campaigns for this batch
+  await Promise.all([...new Set(due.map(c => c.campaign_id))].map(campFor));
 
-  for (const c of due) {
-    let camp = campCache[c.campaign_id];
-    if (!camp) {
-      camp = (await sb(`campaigns?id=eq.${c.campaign_id}&select=*`))[0];
-      campCache[c.campaign_id] = camp;
-    }
-    if (!camp || ['paused','cancelled','completed'].includes(camp.status)) continue;
-
+  async function processOne(c) {
+    const camp = campCache[c.campaign_id];
+    if (!camp || ['paused', 'cancelled', 'completed'].includes(camp.status)) return { skip: true };
     const to = c.email || c.teach_email || c.personal_email;
-    if (!to) continue;
+    if (!to) return { skip: true };
     const schedule = Array.isArray(camp.followup_schedule) ? camp.followup_schedule : [];
     const stage = c.followup_stage || 0;
-
     const html = render(camp.email_template, c, camp);
     const subject = render(camp.email_subject, c, camp);
-    if (/\{\{\s*\w+\s*\}\}/.test(html) || SSN_RE.test(html)) { failed++; continue; }
-
+    if (/\{\{\s*\w+\s*\}\}/.test(html) || SSN_RE.test(html)) return { failed: true };
     try {
       const sg = await fetch('https://api.sendgrid.com/v3/mail/send', {
         method: 'POST',
@@ -79,27 +79,25 @@ exports.handler = async () => {
           from: { email: camp.sender_email, name: camp.sender_name },
           reply_to: camp.reply_to_email ? { email: camp.reply_to_email } : undefined,
           subject, content: [{ type: 'text/html', value: html }],
-          categories: ['compliance','reminder','teach-outreach'],
-          custom_args: { campaign_id: c.campaign_id, candidate_id: c.id },
+          categories: ['compliance', 'reminder', 'teach-outreach'],
+          custom_args: { campaign_id: c.campaign_id, candidate_id: String(c.id) },
         }),
       });
-      if (!sg.ok) { failed++; continue; }
-      sent++;
-
-      // schedule next stage, if any remain
-      const next = schedule[stage]; // schedule[stage] = hours until the stage AFTER this one
-      const patch = {
-        status: 'sent', followup_stage: stage + 1,
-        last_action: `Reminder ${stage + 1} ${nowIso}`,
-        next_followup_at: next != null
-          ? new Date(Date.now() + Number(next) * 3600000).toISOString() : null,
-      };
-      await sb(`candidates?id=eq.${c.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+      if (!sg.ok) return { failed: true };
+      const next = schedule[stage];
+      await sb(`candidates?id=eq.${c.id}`, { method: 'PATCH', body: JSON.stringify({
+        status: 'sent', followup_stage: stage + 1, last_action: `Reminder ${stage + 1} ${nowIso}`,
+        next_followup_at: next != null ? new Date(Date.now() + Number(next) * 3600000).toISOString() : null,
+      }) });
       await sb('email_events', { method: 'POST', body: JSON.stringify({
         candidate_id: c.id, campaign_id: c.campaign_id, event_type: 'sent',
         stage: stage + 1, detail: { source: 'followup' } }) });
-    } catch { failed++; }
-    await new Promise(r => setTimeout(r, 300));
+      return { sent: true };
+    } catch { return { failed: true }; }
   }
-  return { statusCode: 200, body: `sent ${sent}, failed ${failed}` };
+
+  const res = await Promise.all(due.map(processOne));
+  const sent = res.filter(r => r.sent).length;
+  const failed = res.filter(r => r.failed).length;
+  return { statusCode: 200, body: `sent ${sent}, failed ${failed}, batch ${due.length}` };
 };
