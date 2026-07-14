@@ -48,7 +48,7 @@ exports.handler = async () => {
   // process a capped batch per run so the invocation stays under the time limit;
   // subsequent hourly runs clear any remaining backlog.
   const due = await sb(
-    `candidates?excluded=eq.false&status=not.in.(completed,responded)` +
+    `candidates?excluded=eq.false&status=not.in.(completed,responded,bounced,failed)` +
     `&next_followup_at=lte.${nowIso}&select=*&order=next_followup_at&limit=40`);
   if (!due || !due.length) return { statusCode: 200, body: 'nothing due' };
 
