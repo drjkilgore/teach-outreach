@@ -235,11 +235,11 @@ async function routeView(){
 /* ---------- 8. DASHBOARD -------------------------------------------- */
 async function viewDashboard(){
   const m=$('main');
-  let totals={total:0,sent:0,delivered:0,completed:0,outstanding:0,bounced:0};
+  let totals={total:0,sent:0,delivered:0,opened:0,completed:0,outstanding:0,bounced:0};
   const rows=[];
   for(const c of S.campaigns){
     const st=await loadStats(c.id);
-    ['total','sent','delivered','completed','outstanding','bounced'].forEach(k=>totals[k]+=Number(st[k]||0));
+    ['total','sent','delivered','opened','completed','outstanding','bounced'].forEach(k=>totals[k]+=Number(st[k]||0));
     rows.push({c,st});
   }
   const rate = totals.total? Math.round(100*totals.completed/totals.total):0;
@@ -251,6 +251,8 @@ async function viewDashboard(){
   <div class="stat-grid" style="margin-bottom:22px">
     <div class="stat"><div class="n">${money(totals.total)}</div><div class="k">Candidates</div></div>
     <div class="stat accent"><div class="n">${money(totals.sent)}</div><div class="k">Emails sent</div></div>
+    <div class="stat good"><div class="n">${money(totals.delivered)}</div><div class="k">Delivered</div></div>
+    <div class="stat"><div class="n">${money(totals.opened)}</div><div class="k">Opened</div></div>
     <div class="stat good"><div class="n">${money(totals.completed)}</div><div class="k">Completed</div></div>
     <div class="stat"><div class="n">${money(totals.outstanding)}</div><div class="k">Outstanding</div></div>
     <div class="stat bad"><div class="n">${money(totals.bounced)}</div><div class="k">Bounced</div></div>
@@ -263,7 +265,7 @@ async function viewDashboard(){
       ${rows.map(({c,st})=>`<tr>
         <td><b>${esc(c.name)}</b></td>
         <td>${esc(c.program_state||'—')}</td>
-        <td><span class="pill ${statusPill(c.status)}">${esc(c.status)}</span></td>
+        <td><span class="pill ${statusPill(c.status)}">${esc(campaignLabel(c.status))}</span></td>
         <td class="mono">${money(st.total||0)}</td>
         <td class="mono">${money(st.completed||0)}</td>
         <td>${c.response_deadline?fmtDate(c.response_deadline):'—'}</td>
@@ -273,7 +275,8 @@ async function viewDashboard(){
       <p>Create your first outreach campaign to get started.</p></div>`}
   </div>`;
 }
-function statusPill(s){return {draft:'',ready:'sky',sending:'sky',paused:'warn',completed:'ok',cancelled:'err'}[s]||'';}
+function statusPill(s){return {draft:'',ready:'sky',sending:'sky',active:'ok',paused:'warn',completed:'ok',cancelled:'err'}[s]||'';}
+function campaignLabel(s){return {active:'outreach sent',sending:'sending'}[s]||s;}
 
 async function openCampaign(id){
   S.campaign = S.campaigns.find(c=>c.id===id);
@@ -294,7 +297,7 @@ async function viewCampaigns(){
       <div><h2 style="font-size:17px">${esc(c.name)}</h2>
         <div class="sub">${esc(c.purpose||'')}</div>
         <div class="row" style="margin-top:8px">
-          <span class="pill ${statusPill(c.status)}">${esc(c.status)}</span>
+          <span class="pill ${statusPill(c.status)}">${esc(campaignLabel(c.status))}</span>
           <span class="pill">${esc(c.program_state||'—')}</span>
           ${c.response_deadline?`<span class="pill warn">Due ${fmtDate(c.response_deadline)}</span>`:''}
         </div></div>
@@ -887,6 +890,15 @@ async function sendCampaign(){
   const failed=S.candidates.filter(c=>c.status==='failed').length;
   const pending=S.candidates.filter(c=>c.status==='pending'&&!c.excluded).length;
   await scheduleReminders();
+  // resolve the campaign's status: completed if everyone is done, else 'active'
+  // (resting state after outreach). Guarded in case the migration hasn't run.
+  try{
+    const allDone = S.candidates.length>0 &&
+      S.candidates.filter(c=>!c.excluded).every(c=>c.status==='completed');
+    if(!stopped && !pending){
+      await sb.from('campaigns').update({status: allDone?'completed':'active'}).eq('id',S.campaign.id);
+    }
+  }catch(_){ /* enum value not present yet — leave status as sending */ }
   await loadCampaigns();
   if(stopped||pending){
     toast(`${sent} sent so far, ${pending} still queued — click Send again to finish.`,'err');
