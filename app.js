@@ -6,7 +6,7 @@
 
 /* ---------- 1. CONFIG — paste your values, commit, deploy ----------- */
 const CONFIG = {
-   SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
+  SUPABASE_URL:      'https://zajoueiegadxcnmfgufg.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpham91ZWllZ2FkeGNubWZndWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODcxMTcsImV4cCI6MjA5OTU2MzExN30.0x0Sqxfk9bT3VbZxXnqmFy0p0AiiEEkR1YizF0Fur_A',
   SEND_FN:           '/.netlify/functions/send-email',
 };
@@ -869,22 +869,31 @@ async function sendCampaign(){
   if(!$('rv_confirm').checked) return;
   const btn=$('rv_sendall'); btn.disabled=true;
   await sb.from('campaigns').update({status:'sending'}).eq('id',S.campaign.id);
-  let sent=0, failed=0, guard=0; const sampleErrors=[];
-  try{
-    while(true){
-      const out=await callSend({campaignId:S.campaign.id,mode:'all',limit:20});
-      sent+=out.sent||0; failed+=out.failed||0;
-      if(out.errors&&out.errors.length&&sampleErrors.length<5) sampleErrors.push(...out.errors.slice(0,5-sampleErrors.length));
-      btn.textContent=`Sending… ${sent} sent${out.remaining?`, ${out.remaining} left`:''}`;
-      if(!out.processed || out.remaining===0){ break; }
-      if(++guard>1000){ break; }
+  let guard=0, stopped=false;
+  while(true){
+    let out=null, tries=0;
+    while(tries<3){
+      try{ out=await callSend({campaignId:S.campaign.id,mode:'all',limit:20}); break; }
+      catch(e){ tries++; if(tries>=3) break; await new Promise(r=>setTimeout(r,1500)); }
     }
-    await scheduleReminders();
-    await sb.from('campaigns').update({status:'sending'}).eq('id',S.campaign.id);
-    toast(`Campaign done: ${sent} sent${failed?`, ${failed} failed`:''}`, failed?'':'ok');
-    if(failed && sampleErrors.length) console.warn('Send failures (sample):',sampleErrors);
-    await loadCampaigns(); await loadCandidates(S.campaign.id); go('candidates');
-  }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Send'; }
+    if(!out){ stopped=true; break; }               // 3 straight failures on one chunk
+    btn.textContent=`Sending… ${out.remaining||0} left`;
+    if(!out.processed || out.remaining===0) break;  // done
+    if(++guard>1000) break;
+  }
+  // report the TRUE state from the database, not a running counter
+  await loadCandidates(S.campaign.id);
+  const sent=S.candidates.filter(c=>['sent','delivered','responded','completed'].includes(c.status)).length;
+  const failed=S.candidates.filter(c=>c.status==='failed').length;
+  const pending=S.candidates.filter(c=>c.status==='pending'&&!c.excluded).length;
+  await scheduleReminders();
+  await loadCampaigns();
+  if(stopped||pending){
+    toast(`${sent} sent so far, ${pending} still queued — click Send again to finish.`,'err');
+  }else{
+    toast(`Done: ${sent} sent${failed?`, ${failed} failed (use the "failed" filter)`:''}`, failed?'':'ok');
+  }
+  go('candidates');
 }
 window.sendCampaign=sendCampaign;
 
