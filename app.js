@@ -1148,8 +1148,11 @@ async function viewUsers(){
   const {data:users}=await sb.from('profiles').select('*').order('created_at');
   m.innerHTML=`
   <div class="page-head"><div><h1>Users</h1>
-    <div class="sub">Assign roles. New sign-ups start as Read-Only until elevated here.</div></div></div>
-  <div class="banner info">Create accounts in the Supabase dashboard (Authentication → Users), then set the role below.</div>
+    <div class="sub">Add staff and assign roles. New users can sign in as soon as you create them.</div></div>
+    <button class="btn" onclick="openInvite()">Invite user</button>
+  </div>
+  <div class="banner info">Invite creates the login for you — no need to open Supabase. You'll get a
+    temporary password to share; the new user can sign in with it right away.</div>
   <div class="card" style="padding:0;overflow:hidden">
     <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active</th></tr></thead><tbody>
     ${(users||[]).map(u=>`<tr>
@@ -1168,6 +1171,69 @@ window.setRole=setRole;
 async function toggleActive(id,val){ const {error}=await sb.from('profiles').update({is_active:val}).eq('id',id);
   if(error){ toast(error.message,'err'); return; } await audit('edit',id,{is_active:val}); routeView(); }
 window.toggleActive=toggleActive;
+
+function openInvite(){
+  const modal=document.createElement('div'); modal.className='modal-bg'; modal.id='invmodal';
+  modal.innerHTML=`<div class="modal"><div class="modal-head"><h2>Invite user</h2>
+    <button class="x" onclick="closeModal('invmodal')">×</button></div>
+    <div id="invBody">
+      <div id="invErr"></div>
+      <div class="two">
+        <div class="field"><label>Full name</label><input id="inv_name" placeholder="Jane Doe"></div>
+        <div class="field"><label>Email</label><input id="inv_email" type="email" placeholder="jane@trainingeducators.com"></div>
+      </div>
+      <div class="field"><label>Role</label>
+        <select id="inv_role">
+          <option value="program_admin">Program Administrator — create, upload, send, track, export</option>
+          <option value="reviewer">Reviewer — view &amp; add notes only</option>
+          <option value="read_only">Read-Only — view dashboards only</option>
+          <option value="super_admin">Super Administrator — everything, incl. managing users</option>
+        </select></div>
+      <div class="field"><label>Temporary password (optional — leave blank to auto-generate)</label>
+        <input id="inv_pw" placeholder="Auto-generated if blank"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:6px">
+        <button class="btn-ghost" onclick="closeModal('invmodal')">Cancel</button>
+        <button class="btn" onclick="submitInvite()">Create user</button>
+      </div>
+    </div></div>`;
+  document.body.appendChild(modal);
+}
+window.openInvite=openInvite;
+
+async function submitInvite(){
+  const name=$('inv_name').value.trim(), email=$('inv_email').value.trim(),
+    role=$('inv_role').value, pw=$('inv_pw').value.trim();
+  if(!email){ $('invErr').innerHTML=`<div class="banner err">Email is required.</div>`; return; }
+  $('invErr').innerHTML=`<div class="spin"></div>`;
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const res=await fetch('/.netlify/functions/invite-user',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,full_name:name,role,password:pw||undefined,accessToken:session.access_token})});
+    const out=await res.json();
+    if(!res.ok){ $('invErr').innerHTML=`<div class="banner err">${esc(out.error||'Failed')}</div>`; return; }
+    $('invBody').innerHTML=`
+      <div class="banner ok">User created. Share these sign-in details securely — this password
+        won't be shown again.</div>
+      <div class="info-panel">
+        <div><b>Email:</b> ${esc(out.email)}</div>
+        <div><b>Temporary password:</b> <span class="mono">${esc(out.password)}</span></div>
+        <div><b>Role:</b> ${esc(ROLE_LABEL[out.role]||out.role)}</div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn-ghost" onclick="copyInvite('${esc(out.email)}','${esc(out.password)}')">Copy details</button>
+        <button class="btn" onclick="closeModal('invmodal');go('users')">Done</button>
+      </div>`;
+    toast('User created','ok');
+  }catch(e){ $('invErr').innerHTML=`<div class="banner err">${esc(e.message)}</div>`; }
+}
+window.submitInvite=submitInvite;
+
+function copyInvite(email,pw){
+  navigator.clipboard.writeText(`Sign in at ${location.origin}\nEmail: ${email}\nTemporary password: ${pw}`)
+    .then(()=>toast('Copied','ok'));
+}
+window.copyInvite=copyInvite;
 
 /* ---------- 18. HELP ----------------------------------------------- */
 function viewHelp(){
